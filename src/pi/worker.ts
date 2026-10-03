@@ -8,8 +8,18 @@ import {
   type CreateAgentSessionResult,
 } from "@earendil-works/pi-coding-agent";
 import { AGENT_DIR } from "../config.js";
-import { deliveryId, resultHash, type CompletionCallback, type CompletionPayload } from "../callback.js";
-import type { CallbackState, Notice, SessionState, Snapshot, ToolCall, ToolCallSummary } from "../types.js";
+import { type CompletionCallback, type CompletionPayload } from "../callback.js";
+import { notifyCompletion } from "../completion.js";
+import type { EventService } from "../events/service.js";
+import type {
+  CallbackState,
+  CompletionEventState,
+  Notice,
+  SessionState,
+  Snapshot,
+  ToolCall,
+  ToolCallSummary,
+} from "../types.js";
 import { resolveModel } from "./models.js";
 import { getRuntime } from "./runtime.js";
 import { clipArgs, flatten } from "./trace.js";
@@ -28,6 +38,7 @@ export interface WorkerOptions {
   extensions?: boolean;
   callbackTarget?: string | undefined;
   callback?: CompletionCallback | undefined;
+  events?: Pick<EventService, "emit"> | undefined;
 }
 
 /**
@@ -48,6 +59,7 @@ export class PiWorker {
   activeTools: string[] | undefined;
   error: string | undefined;
   finishedAt: string | undefined;
+  eventState: CompletionEventState | undefined;
   callbackState: CallbackState | undefined;
 
   readonly toolCalls: ToolCall[] = [];
@@ -62,12 +74,13 @@ export class PiWorker {
   private readonly extensionsEnabled: boolean;
   private readonly callbackTarget: string | undefined;
   private readonly callbackAdapter: CompletionCallback | undefined;
+  private readonly eventService: Pick<EventService, "emit"> | undefined;
   private readonly modelSpec: string | undefined;
   private readonly openCalls = new Map<string, ToolCall>();
   private session: AgentSession | undefined;
   private unsubscribe: (() => void) | undefined;
 
-  constructor({ id, label, cwd, model, tools, extensions = false, callbackTarget, callback }: WorkerOptions) {
+  constructor({ id, label, cwd, model, tools, extensions = false, callbackTarget, callback, events }: WorkerOptions) {
     this.id = id ?? randomUUID();
     this.label = label;
     this.cwd = cwd;
@@ -76,6 +89,7 @@ export class PiWorker {
     this.extensionsEnabled = extensions;
     this.callbackTarget = callbackTarget;
     this.callbackAdapter = callback;
+    this.eventService = events;
     this.startedAt = new Date().toISOString();
   }
 
@@ -150,6 +164,9 @@ export class PiWorker {
     this.state = "running";
     this.error = undefined;
     this.finishedAt = undefined;
+    // Notification state belongs to one completed turn/result, not the lifetime session.
+    this.eventState = undefined;
+    this.callbackState = undefined;
     this.run = session
       .prompt(prompt)
       .then(() => session.waitForIdle())
@@ -165,7 +182,7 @@ export class PiWorker {
         // Unblock anything still waiting on an answer that will now never come.
         for (const q of this.questions.values()) q.resolve(undefined);
         this.onChange?.();
-        return this.deliverCompletionCallback();
+        return this.deliverCompletionNotification();
       });
   }
 
@@ -240,26 +257,24 @@ export class PiWorker {
     }
   }
 
-  private async deliverCompletionCallback(): Promise<void> {
-    if (!this.callbackTarget) return;
-    if (!this.callbackAdapter) {
-      this.callbackState = { status: "failed", target: this.callbackTarget,
-        deliveryId: `pi-delegate:${this.id}:unconfigured`, resultHash: undefined, attempts: 0,
-        deliveredAt: undefined, error: "callback target supplied but no callback adapter is configured" };
-      this.onChange?.(); return;
-    }
-    if (this.callbackState?.status === "delivered" || (this.callbackState?.attempts ?? 0) > 0) return;
+  private async deliverCompletionNotification(): Promise<void> {
     const payload: CompletionPayload = {
-      sessionId: this.id, label: this.label, terminalState: this.state, finalText: this.lastText,
-      error: this.error, startedAt: this.startedAt,
-      finishedAt: this.finishedAt ?? new Date().toISOString(), providerModel: this.model,
+      sessionId: this.id,
+      label: this.label,
+      terminalState: this.state,
+      finalText: this.lastText,
+      error: this.error,
+      startedAt: this.startedAt,
+      finishedAt: this.finishedAt ?? new Date().toISOString(),
+      providerModel: this.model,
     };
-    const hash = resultHash(payload);
-    this.callbackState = { status: "pending", target: this.callbackTarget,
-      deliveryId: deliveryId(this.id, hash), resultHash: hash, attempts: 0,
-      deliveredAt: undefined, error: undefined };
-    this.onChange?.();
-    await this.callbackAdapter.deliver(this.callbackTarget, payload, this.callbackState);
+    const result = await notifyCompletion(payload, {
+      events: this.eventService,
+      callbackTarget: this.callbackTarget,
+      callback: this.callbackAdapter,
+    });
+    this.eventState = result.event;
+    this.callbackState = result.callback;
     this.onChange?.();
   }
 
@@ -314,6 +329,7 @@ export class PiWorker {
       error: this.error,
       startedAt: this.startedAt,
       finishedAt: this.finishedAt,
+      event: this.eventState,
       callback: this.callbackState,
     };
   }

@@ -9,7 +9,7 @@ export interface EventDefinition {
 export const EVENT_DEFINITIONS: readonly EventDefinition[] = [
   {
     name: "delegation.completed",
-    description: "A delegated pi session reached a successful terminal state. Emission is wired in Turn 2.",
+    description: "A delegated pi session reached a successful terminal state.",
     delivery: ["webhook"],
     inputSchema: {
       type: "object",

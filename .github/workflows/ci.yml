@@ -25,3 +25,4 @@ jobs:
       - run: node test/launch.mjs node dist/index.js
       - run: node test/callback.mjs
       - run: node test/events.mjs
+      - run: node test/completion-events.mjs

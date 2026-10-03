@@ -11,6 +11,18 @@ export interface CallbackState {
   error: string | undefined;
 }
 
+export type CompletionEventStatus = "pending" | "accepted" | "failed" | "unsubscribed";
+export interface CompletionEventState {
+  status: CompletionEventStatus;
+  eventId: string;
+  resultHash: string;
+  attempts: number;
+  subscriptions: number;
+  acceptedSubscriptions: number;
+  acceptedAt: string | undefined;
+  error: string | undefined;
+}
+
 export type QuestionKind = "select" | "confirm" | "input";
 
 export interface QuestionJson {
@@ -59,6 +71,7 @@ export interface Snapshot {
   error: string | undefined;
   startedAt: string;
   finishedAt: string | undefined;
+  event: CompletionEventState | undefined;
   callback: CallbackState | undefined;
 }
 
