@@ -226,6 +226,17 @@ export class PiWorker {
         if (ev.assistantMessageEvent?.type === "text_end")
           this.lastText = ev.assistantMessageEvent.content ?? this.lastText;
         break;
+
+      case "message_end":
+        if (ev.message.role === "assistant") {
+          const text = ev.message.content
+            .filter((part) => part.type === "text")
+            .map((part) => part.text)
+            .join("");
+          if (text) this.lastText = text;
+          if (ev.message.errorMessage) this.error = ev.message.errorMessage;
+        }
+        break;
     }
   }
 
