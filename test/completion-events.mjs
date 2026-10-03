@@ -106,6 +106,21 @@ assert.equal(callbackCalls, 3);
 assert.equal(errorResult.event, undefined);
 assert.equal(errorResult.callback.status, "delivered");
 
+const throwingCallback = {
+  async deliver() {
+    throw new Error("callback connection refused");
+  },
+};
+const contained = await notifyCompletion(payload, {
+  events: noSubscribers,
+  callbackTarget: "supervisor-chat",
+  callback: throwingCallback,
+});
+assert.equal(contained.event.status, "unsubscribed");
+assert.equal(contained.callback.status, "failed");
+assert.equal(contained.callback.attempts, 1);
+assert.equal(contained.callback.error, "callback connection refused");
+
 const repeat = await notifyCompletion(payload, { events: acceptingEvents });
 assert.equal(repeat.event.eventId, expectedId, "the same logical result keeps the same event id");
 
