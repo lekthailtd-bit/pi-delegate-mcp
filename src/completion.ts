@@ -19,6 +19,8 @@ export interface CompletionNotificationResult {
  * Successful completions prefer MCP Events. The legacy explicit callback is a fallback
  * only when no event subscription accepts the event. Error/aborted states stay on the
  * callback path until their own event names are deliberately added to the catalog.
+ * Notification transport failure is recorded here and must never make completed worker
+ * work reject retroactively.
  */
 export async function notifyCompletion(
   payload: CompletionPayload,
@@ -101,6 +103,12 @@ export async function notifyCompletion(
     deliveredAt: undefined,
     error: undefined,
   };
-  await options.callback.deliver(options.callbackTarget, payload, callback);
+  try {
+    await options.callback.deliver(options.callbackTarget, payload, callback);
+  } catch (error) {
+    callback.status = "failed";
+    callback.attempts = Math.max(callback.attempts, 1);
+    callback.error = error instanceof Error ? error.message : String(error);
+  }
   return { event, callback };
 }
