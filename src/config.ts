@@ -71,3 +71,29 @@ export const TRACE_RESULT = num(process.env.PI_DELEGATE_TRACE_RESULT, 600);
 export const STATE_DIR =
   process.env.PI_DELEGATE_STATE_DIR ||
   join(process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"), "pi-delegate-mcp");
+
+/** MCP Events subscription persistence and webhook delivery policy. */
+export const EVENTS_STORE_FILE =
+  process.env.PI_DELEGATE_EVENTS_STORE || join(STATE_DIR, "event-subscriptions.json");
+export const EVENTS_PRINCIPAL = process.env.PI_DELEGATE_EVENTS_PRINCIPAL || "local";
+export const EVENTS_DEFAULT_TTL_MS = num(
+  process.env.PI_DELEGATE_EVENTS_TTL_MS,
+  7 * 24 * 60 * 60 * 1000,
+);
+export const EVENTS_MAX_TTL_MS = num(
+  process.env.PI_DELEGATE_EVENTS_MAX_TTL_MS,
+  7 * 24 * 60 * 60 * 1000,
+);
+export const EVENTS_VERIFY_CACHE_MS = num(
+  process.env.PI_DELEGATE_EVENTS_VERIFY_CACHE_MS,
+  10 * 60 * 1000,
+);
+export const EVENTS_SECRET_ROTATION_MS = num(
+  process.env.PI_DELEGATE_EVENTS_SECRET_ROTATION_MS,
+  5 * 60 * 1000,
+);
+export const EVENTS_TIMEOUT_MS = num(process.env.PI_DELEGATE_EVENTS_TIMEOUT_MS, 10_000);
+export const EVENTS_MAX_ATTEMPTS = Math.max(
+  1,
+  Math.floor(num(process.env.PI_DELEGATE_EVENTS_MAX_ATTEMPTS, 4)),
+);
