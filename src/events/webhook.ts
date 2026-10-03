@@ -29,7 +29,8 @@ function ipv4Parts(address: string): number[] | undefined {
 export function isPublicAddress(address: string): boolean {
   const v4 = ipv4Parts(address);
   if (v4) {
-    const [a, b] = v4;
+    const a = v4[0]!;
+    const b = v4[1]!;
     if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
     if (a === 100 && b >= 64 && b <= 127) return false;
     if (a === 169 && b === 254) return false;
@@ -91,7 +92,8 @@ async function resolveTarget(rawUrl: string): Promise<ResolvedTarget> {
   if (!addresses.length) throw new Error("callback URL did not resolve");
   if (addresses.some((entry) => !isPublicAddress(entry.address)))
     throw new Error("callback URL resolves to a non-public address");
-  return { url, address: addresses[0].address, family: addresses[0].family as 4 | 6 };
+  const first = addresses[0]!;
+  return { url, address: first.address, family: first.family as 4 | 6 };
 }
 
 export const secureWebhookPost: WebhookPost = async (rawUrl, body, headers, timeoutMs) => {
