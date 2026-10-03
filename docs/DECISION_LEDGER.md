@@ -19,6 +19,7 @@ Canonical scope: Lek Thai fork `lekthailtd-bit/pi-delegate-mcp` and its delegate
 | D011 | The `delegation.completed` event ID is the existing deterministic logical completion ID derived from session ID + SHA-256 of the full completion payload. The event payload itself excludes `finalText`. | Retries and duplicate deliveries preserve identity while large worker output remains in authoritative session/durable state rather than webhook payloads. |
 | D012 | Event/callback notification state belongs to one completed turn/result and is reset when `follow_up` begins a new turn. | A reused Pi session can produce multiple distinct results; each result needs its own deterministic completion notification instead of inheriting the prior turn's terminal notification state. |
 | D013 | A successful webhook 2xx is recorded as event `accepted`, not `delivered`. | The webhook response proves acceptance by the receiver, not that a subscribed ChatGPT supervisor has completed downstream processing. |
+| D014 | Notification transport failure must never make already-completed worker work reject retroactively. Event and callback failures are recorded as notification state and the terminal worker result remains intact. | Notification is secondary to durable work. A callback connection failure can occur before the adapter's internal delivery try/catch, so the orchestration layer must contain it. |
 
 ## Configurable operational defaults (inferred, not product decisions)
 
