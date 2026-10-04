@@ -179,7 +179,7 @@ export class PiWorker {
       .prompt(prompt)
       .then(() => session.waitForIdle())
       .then(() => {
-        this.state = this.state === "aborted" ? "aborted" : "done";
+        if (this.state === "running") this.state = this.error ? "error" : "done";
       })
       .catch((e: unknown) => {
         this.state = "error";
@@ -253,7 +253,13 @@ export class PiWorker {
             .map((part) => part.text)
             .join("");
           if (text) this.lastText = text;
-          if (ev.message.errorMessage) this.error = ev.message.errorMessage;
+          // A successful retry supersedes the earlier model-attempt error.
+          // Never let late provider messages overwrite a terminal timeout/abort.
+          if (this.state === "running") {
+            this.error = ev.message.errorMessage ||
+              (ev.message.stopReason === "error" ? "Model endpoint failed" :
+               ev.message.stopReason === "aborted" ? "Model endpoint aborted" : undefined);
+          }
           debugEvent({
             sessionId: this.id,
             direction: ev.message.errorMessage ? "error" : "endpoint",
@@ -269,7 +275,7 @@ export class PiWorker {
         // Pi emits this after retries, queued messages, and compaction have drained. It is
         // the authoritative terminal signal; do not make status consumers wait for the
         // separate prompt/idle promise to unwind (that promise can lag or get stuck).
-        if (this.state === "running") this.state = "done";
+        if (this.state === "running") this.state = this.error ? "error" : "done";
         this.onChange?.();
         void this.finishTurn().catch(NOOP);
         break;
