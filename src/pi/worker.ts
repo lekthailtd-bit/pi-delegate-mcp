@@ -79,6 +79,8 @@ export class PiWorker {
   private readonly openCalls = new Map<string, ToolCall>();
   private session: AgentSession | undefined;
   private unsubscribe: (() => void) | undefined;
+  /** Completion is published once per turn, even when Pi settles before its promise unwinds. */
+  private completionPromise: Promise<void> | undefined;
 
   constructor({ id, label, cwd, model, tools, extensions = false, callbackTarget, callback, events }: WorkerOptions) {
     this.id = id ?? randomUUID();
@@ -167,6 +169,7 @@ export class PiWorker {
     // Notification state belongs to one completed turn/result, not the lifetime session.
     this.eventState = undefined;
     this.callbackState = undefined;
+    this.completionPromise = undefined;
     this.run = session
       .prompt(prompt)
       .then(() => session.waitForIdle())
@@ -177,13 +180,7 @@ export class PiWorker {
         this.state = "error";
         this.error = message(e);
       })
-      .finally(() => {
-        this.finishedAt = new Date().toISOString();
-        // Unblock anything still waiting on an answer that will now never come.
-        for (const q of this.questions.values()) q.resolve(undefined);
-        this.onChange?.();
-        return this.deliverCompletionNotification();
-      });
+      .finally(() => this.finishTurn());
   }
 
   /**
@@ -254,7 +251,27 @@ export class PiWorker {
           if (ev.message.errorMessage) this.error = ev.message.errorMessage;
         }
         break;
+
+      case "agent_settled":
+        // Pi emits this after retries, queued messages, and compaction have drained. It is
+        // the authoritative terminal signal; do not make status consumers wait for the
+        // separate prompt/idle promise to unwind (that promise can lag or get stuck).
+        if (this.state === "running") this.state = "done";
+        this.onChange?.();
+        void this.finishTurn().catch(NOOP);
+        break;
     }
+  }
+
+  private finishTurn(): Promise<void> {
+    if (this.completionPromise) return this.completionPromise;
+
+    this.finishedAt = new Date().toISOString();
+    // Unblock anything still waiting on an answer that will now never come.
+    for (const q of this.questions.values()) q.resolve(undefined);
+    this.onChange?.();
+    this.completionPromise = this.deliverCompletionNotification();
+    return this.completionPromise;
   }
 
   private async deliverCompletionNotification(): Promise<void> {
