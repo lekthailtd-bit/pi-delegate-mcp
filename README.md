@@ -396,6 +396,7 @@ on by default. It also costs real startup time, which is why it is off unless as
 | `PI_DELEGATE_STATUSLINE_WRAP` | unset            | Status line command to wrap and append to                                |
 | `PI_DELEGATE_STATUSLINE_LOG`  | unset            | File to append a timestamp to on every status line render, for debugging |
 | `PI_DELEGATE_PROGRESS_MS`     | `15000`          | Progress notification interval during `run`                              |
+| `PI_DELEGATE_TURN_TIMEOUT_MS` | `300000`         | Hard ceiling for a pi turn before it is marked `error`                    |
 | `PI_DELEGATE_IGNORE_SCOPE`    | unset            | `1` ignores pi's `enabledModels` scope, allowing any configured model    |
 | `PI_DELEGATE_STRICT_SCOPE`    | unset            | `1` honours `enabledModels` exactly, dropping the custom-provider bypass |
 | `PI_CODING_AGENT_DIR`         | `~/.pi/agent`    | Where pi's `auth.json` and config are read from                          |
