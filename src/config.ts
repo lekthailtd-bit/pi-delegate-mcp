@@ -63,6 +63,12 @@ export const LIST_CAP = num(process.env.PI_DELEGATE_LIST_CAP, 60);
 /** Progress notification interval during `run`, which resets the host's request timeout. */
 export const PROGRESS_MS = num(process.env.PI_DELEGATE_PROGRESS_MS, 15_000);
 
+/**
+ * Hard ceiling for one pi turn. A provider or tool can fail before pi emits its
+ * terminal event; without this guard the delegate would remain `running` forever.
+ */
+export const TURN_TIMEOUT_MS = num(process.env.PI_DELEGATE_TURN_TIMEOUT_MS, 5 * 60 * 1000);
+
 /** Tool arguments and results are clipped before entering the trace. */
 export const TRACE_ARGS = num(process.env.PI_DELEGATE_TRACE_ARGS, 400);
 export const TRACE_RESULT = num(process.env.PI_DELEGATE_TRACE_RESULT, 600);
