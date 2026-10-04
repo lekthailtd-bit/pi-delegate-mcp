@@ -47,12 +47,13 @@ const accepted = await notifyCompletion(payload, {
   callback,
 });
 assert.equal(eventCalls, 1);
-assert.equal(callbackCalls, 0, "accepted event suppresses the legacy callback");
+assert.equal(callbackCalls, 1, "an explicit callbackTarget is delivered even when an event subscription accepts");
 assert.equal(accepted.event.status, "accepted");
 assert.equal(accepted.event.eventId, expectedId);
 assert.equal(accepted.event.resultHash, hash);
 assert.equal(accepted.event.acceptedSubscriptions, 1);
-assert.equal(accepted.callback, undefined);
+assert.equal(accepted.callback.status, "delivered");
+assert.equal(accepted.callback.deliveryId, expectedId);
 assert.equal(eventData.resultHash, hash);
 assert.equal(eventData.sessionId, payload.sessionId);
 assert.ok(!("finalText" in eventData), "large final text stays out of the event payload");
@@ -71,7 +72,7 @@ const fallback = await notifyCompletion(payload, {
   callbackTarget: "supervisor-chat",
   callback,
 });
-assert.equal(callbackCalls, 1, "no matching event subscription falls back to callback");
+assert.equal(callbackCalls, 2);
 assert.equal(fallback.event.status, "unsubscribed");
 assert.equal(fallback.callback.status, "delivered");
 assert.equal(fallback.callback.deliveryId, expectedId);
@@ -89,7 +90,7 @@ const rejected = await notifyCompletion(payload, {
   callbackTarget: "supervisor-chat",
   callback,
 });
-assert.equal(callbackCalls, 2, "failed event delivery falls back to callback");
+assert.equal(callbackCalls, 3);
 assert.equal(rejected.event.status, "failed");
 assert.equal(rejected.event.attempts, 4);
 assert.equal(rejected.callback.status, "delivered");
@@ -102,7 +103,7 @@ const errorResult = await notifyCompletion(errorPayload, {
   callback,
 });
 assert.equal(errorEventCalls, 0, "error states do not use delegation.completed");
-assert.equal(callbackCalls, 3);
+assert.equal(callbackCalls, 4);
 assert.equal(errorResult.event, undefined);
 assert.equal(errorResult.callback.status, "delivered");
 
@@ -120,6 +121,12 @@ assert.equal(contained.event.status, "unsubscribed");
 assert.equal(contained.callback.status, "failed");
 assert.equal(contained.callback.attempts, 1);
 assert.equal(contained.callback.error, "callback connection refused");
+assert.equal(payload.terminalState,"done","callback transport failure never mutates the successful delegate result");
+
+const noTarget = await notifyCompletion(payload,{events:acceptingEvents,callback});
+assert.equal(noTarget.callback,undefined,"callback target is never inferred");
+assert.equal(callbackCalls,4);
+assert.equal(noTarget.event.status,"accepted");
 
 const repeat = await notifyCompletion(payload, { events: acceptingEvents });
 assert.equal(repeat.event.eventId, expectedId, "the same logical result keeps the same event id");

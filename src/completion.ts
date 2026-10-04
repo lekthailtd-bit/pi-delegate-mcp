@@ -16,11 +16,11 @@ export interface CompletionNotificationResult {
 /**
  * Notify a supervisor that one delegate turn reached a terminal state.
  *
- * Successful completions prefer MCP Events. The legacy explicit callback is a fallback
- * only when no event subscription accepts the event. Error/aborted states stay on the
- * callback path until their own event names are deliberately added to the catalog.
- * Notification transport failure is recorded here and must never make completed worker
- * work reject retroactively.
+ * Successful completions may publish the existing MCP Event, but an explicit
+ * callbackTarget is authoritative and is delivered independently. Error/aborted
+ * states stay on the callback path until their own event names are deliberately
+ * added to the catalog. Notification transport failure is recorded here and must
+ * never make completed worker work reject retroactively.
  */
 export async function notifyCompletion(
   payload: CompletionPayload,
@@ -61,9 +61,8 @@ export async function notifyCompletion(
       if (accepted > 0) {
         event.status = "accepted";
         event.acceptedAt = new Date().toISOString();
-        return { event, callback: undefined };
-      }
-      if (emitted.deliveries.length === 0) {
+        if (!options.callbackTarget) return { event, callback: undefined };
+      } else if (emitted.deliveries.length === 0) {
         event.status = "unsubscribed";
       } else {
         event.status = "failed";
