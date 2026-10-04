@@ -66,3 +66,17 @@ assert.ok(timedOut.finishedAt);
 assert.equal(abortCalls, 1, "the stuck session receives best-effort abort");
 
 console.log("worker-lifecycle-timeout: ok");
+
+const manuallyAborted = new PiWorker({
+  id: "stuck-turn-abort",
+  cwd: process.cwd(),
+  tools: [],
+  turnTimeoutMs: 60_000,
+  callback: { async deliver() {} },
+});
+manuallyAborted.track(stuckSession, "never settles");
+await manuallyAborted.abort();
+assert.equal(manuallyAborted.state, "aborted", "manual abort is terminal immediately");
+assert.ok(manuallyAborted.finishedAt);
+
+console.log("worker-lifecycle-abort: ok");

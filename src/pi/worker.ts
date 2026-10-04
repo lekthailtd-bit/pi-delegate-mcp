@@ -369,7 +369,10 @@ export class PiWorker {
   async abort(): Promise<{ aborted: true }> {
     this.state = "aborted";
     this.onChange?.();
-    await this.session?.abort().catch(NOOP);
+    // AgentSession.abort() waits for the provider to become idle. Keep operator
+    // recovery bounded when that provider is the thing that is stuck.
+    void this.session?.abort().catch(NOOP);
+    await this.finishTurn();
     return { aborted: true };
   }
 
