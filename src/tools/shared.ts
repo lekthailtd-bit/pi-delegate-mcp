@@ -1,5 +1,5 @@
-import type { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ZodRawShape } from "zod";
+import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
+import { z, type ZodRawShape } from "zod";
 
 /** Every tool answers with pretty JSON, so a human reading the transcript can follow it. */
 export const json = (value: unknown) => ({
@@ -26,22 +26,29 @@ export interface ToolMeta<A extends ZodRawShape> {
   inputSchema: A;
 }
 
+type GatedHandler<A extends ZodRawShape> = (
+  args: z.infer<z.ZodObject<A>>,
+  ctx: ServerContext,
+) => ReturnType<typeof json> | Promise<ReturnType<typeof json>>;
+
 /**
- * Register a tool that is unavailable until `init` has run. Going through this wrapper
- * rather than repeating the check means a tool added later cannot forget the gate.
+ * Register a tool that is unavailable until `init` has run. v2 expects a Standard
+ * Schema, so raw Zod shapes are wrapped here once rather than relying on the
+ * deprecated raw-shape overload at every call site.
  */
 export function gated<A extends ZodRawShape>(
   server: McpServer,
   name: string,
   meta: ToolMeta<A>,
-  handler: ToolCallback<A>,
+  handler: GatedHandler<A>,
 ): void {
-  // The SDK's ToolCallback is an overloaded generic that does not survive being wrapped,
-  // so the indirection is erased here. The handler stays fully typed at its call site.
-  const call = handler as unknown as (...a: unknown[]) => unknown;
-  const guarded = ((...args: unknown[]) => {
-    requireInit();
-    return call(...args);
-  }) as unknown as ToolCallback<A>;
-  server.registerTool(name, meta, guarded);
+  const inputSchema = z.object(meta.inputSchema);
+  server.registerTool(
+    name,
+    { description: meta.description, inputSchema },
+    async (args, ctx) => {
+      requireInit();
+      return handler(args, ctx);
+    },
+  );
 }

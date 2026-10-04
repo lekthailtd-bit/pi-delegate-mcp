@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { createServer } from "./server.js";
 import { cleanup } from "./statusline/state.js";
 
@@ -30,4 +30,4 @@ setInterval(() => {
   }
 }, HOST_WATCH_MS).unref();
 
-await createServer().connect(new StdioServerTransport());
+await serveStdio(() => createServer());

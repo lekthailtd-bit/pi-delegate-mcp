@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ALLOW_ALL, DEFAULT_MODEL, HISTORY_LIMIT, LIST_CAP, TRACE_ARGS, TRACE_RESULT } from "../config.js";
 import { PERMITTED, READ_ONLY_TOOLS } from "../permissions.js";
@@ -13,13 +13,13 @@ export function registerInit(server: McpServer): void {
         "READ THIS FIRST. Reports what this server can reach and how to drive it: permitted tools, " +
         "the default model, models available per provider, and the recipes for delegating. " +
         "Every other tool refuses until this has been called once.",
-      inputSchema: {
-        models: z.string().optional().describe('Substring to filter the model list, e.g. "deepseek"'),
-        cwd: z
-          .string()
-          .optional()
-          .describe("Repository you intend to delegate in; picks up its project-local pi model scope"),
-      },
+      inputSchema: z.object({
+              models: z.string().optional().describe('Substring to filter the model list, e.g. "deepseek"'),
+              cwd: z
+                .string()
+                .optional()
+                .describe("Repository you intend to delegate in; picks up its project-local pi model scope"),
+            }),
     },
     async ({ models: filter, cwd }) => {
       // Throws if pi is missing, unauthenticated, or scoped down to nothing. The gate stays

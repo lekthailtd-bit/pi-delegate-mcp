@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { Client, SSEClientTransport } from "@modelcontextprotocol/client";
 import type { CallbackState, SessionState } from "./types.js";
 
 export interface CompletionPayload {

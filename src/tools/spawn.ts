@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ALLOW_ALL, BATCH_MAX, DEFAULT_MODEL, PROGRESS_MS } from "../config.js";
 import { PERMITTED, pickTools, READ_ONLY_TOOLS } from "../permissions.js";
@@ -151,18 +151,16 @@ export function registerSpawn(server: McpServer): void {
         "Prefer `spawn` for long work; this is for quick questions.",
       inputSchema: spawnShape,
     },
-    async (args, extra) => {
+    async (args, ctx) => {
       const w = await launch(args);
       // Progress notifications reset the MCP request timeout, which defaults to 60s.
-      const token = extra?._meta?.progressToken;
+      const token = ctx.mcpReq._meta?.progressToken;
       const ticker = token
         ? setInterval(() => {
-            void extra
-              ?.sendNotification?.({
+            void ctx.mcpReq.notify({
                 method: "notifications/progress",
                 params: { progressToken: token, progress: w.turns, message: `${w.state}, turn ${w.turns}` },
-              })
-              ?.catch(() => {});
+              }).catch(() => {});
           }, PROGRESS_MS)
         : undefined;
       try {

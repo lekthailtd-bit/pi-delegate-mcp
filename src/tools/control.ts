@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { HISTORY_LIMIT } from "../config.js";
 import { all, forget, must } from "../registry.js";
@@ -12,7 +12,9 @@ export function registerControl(server: McpServer): void {
       description:
         "Check a background pi session. Returns state, turn count, tools used, latest text, and any " +
         "pending questions the agent is waiting on. A non-empty `questions` array means it is blocked " +
-        "until you call `answer`. `toolCalls` traces every tool the delegate ran, in order.",
+        "until you call `answer`. `toolCalls` traces every tool the delegate ran, in order. " +
+        "This call is non-blocking: use it while `state` is `running`; `lastText` is updated from " +
+        "streamed assistant output before the session settles.",
       inputSchema: {
         sessionId: z.string(),
         verbose: z.boolean().optional().describe("Include tool results and call ids in the trace"),

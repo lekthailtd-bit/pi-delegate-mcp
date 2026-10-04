@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import {
   EVENTS_DEFAULT_TTL_MS,
@@ -13,30 +13,42 @@ import {
 import { EventService } from "./service.js";
 import { FileSubscriptionStore } from "./store.js";
 
-const ListRequest = z.object({
-  method: z.literal("events/list"),
-  params: z.object({ cursor: z.string().nullable().optional() }).passthrough().optional(),
+const ListParams = z.object({
+  cursor: z.string().nullable().optional(),
+}).passthrough();
+
+const SubscribeParams = z.object({
+  name: z.string(),
+  arguments: z.record(z.string(), z.unknown()).optional(),
+  delivery: z.object({ mode: z.literal("webhook"), url: z.string(), secret: z.string() }),
+  cursor: z.string().nullable().optional(),
+  ttlMs: z.number().positive().nullable().optional(),
 });
 
-const SubscribeRequest = z.object({
-  method: z.literal("events/subscribe"),
-  params: z.object({
-    name: z.string(),
-    arguments: z.record(z.string(), z.unknown()).optional(),
-    delivery: z.object({ mode: z.literal("webhook"), url: z.string(), secret: z.string() }),
-    cursor: z.string().nullable().optional(),
-    ttlMs: z.number().positive().nullable().optional(),
-  }),
+const UnsubscribeParams = z.object({
+  name: z.string(),
+  arguments: z.record(z.string(), z.unknown()).optional(),
+  delivery: z.object({ mode: z.literal("webhook"), url: z.string() }),
 });
 
-const UnsubscribeRequest = z.object({
-  method: z.literal("events/unsubscribe"),
-  params: z.object({
-    name: z.string(),
-    arguments: z.record(z.string(), z.unknown()).optional(),
-    delivery: z.object({ mode: z.literal("webhook"), url: z.string() }),
-  }),
+const EventDefinitionSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  delivery: z.array(z.literal("webhook")),
+  inputSchema: z.record(z.string(), z.unknown()),
+  payloadSchema: z.record(z.string(), z.unknown()),
 });
+const ListResult = z.object({
+  events: z.array(EventDefinitionSchema),
+  nextCursor: z.string().nullable(),
+});
+const SubscribeResult = z.object({
+  id: z.string(),
+  refreshBefore: z.string(),
+  cursor: z.string().nullable(),
+  truncated: z.boolean(),
+});
+const EmptyResult = z.object({}).strict();
 
 let sharedService: EventService | undefined;
 
@@ -53,8 +65,26 @@ export function eventService(): EventService {
 }
 
 export function registerEvents(server: McpServer, service = eventService()): void {
-  const lowLevel = server.server as any;
-  lowLevel.setRequestHandler(ListRequest as any, async (request: any) => service.list(request.params?.cursor));
-  lowLevel.setRequestHandler(SubscribeRequest as any, async (request: any) => service.subscribe(request.params));
-  lowLevel.setRequestHandler(UnsubscribeRequest as any, async (request: any) => service.unsubscribe(request.params));
+  const lowLevel = server.server;
+  lowLevel.setRequestHandler(
+    "events/list",
+    { params: ListParams, result: ListResult },
+    async (params) => {
+      const result = service.list(params.cursor);
+      return {
+        ...result,
+        events: result.events.map((event) => ({ ...event, delivery: [...event.delivery] })),
+      };
+    },
+  );
+  lowLevel.setRequestHandler(
+    "events/subscribe",
+    { params: SubscribeParams, result: SubscribeResult },
+    async (params) => service.subscribe(params),
+  );
+  lowLevel.setRequestHandler(
+    "events/unsubscribe",
+    { params: UnsubscribeParams, result: EmptyResult },
+    async (params) => service.unsubscribe(params),
+  );
 }
