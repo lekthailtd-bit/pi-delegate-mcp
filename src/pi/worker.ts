@@ -10,6 +10,7 @@ import {
 import { AGENT_DIR } from "../config.js";
 import { type CompletionCallback, type CompletionPayload } from "../callback.js";
 import { notifyCompletion } from "../completion.js";
+import { debugEvent } from "../debug.js";
 import type { EventService } from "../events/service.js";
 import type {
   CallbackState,
@@ -81,6 +82,7 @@ export class PiWorker {
   private unsubscribe: (() => void) | undefined;
   /** Completion is published once per turn, even when Pi settles before its promise unwinds. */
   private completionPromise: Promise<void> | undefined;
+  private turnStartedAt = 0;
 
   constructor({ id, label, cwd, model, tools, extensions = false, callbackTarget, callback, events }: WorkerOptions) {
     this.id = id ?? randomUUID();
@@ -170,11 +172,14 @@ export class PiWorker {
     this.eventState = undefined;
     this.callbackState = undefined;
     this.completionPromise = undefined;
+    this.turnStartedAt = Date.now();
+    debugEvent({ sessionId: this.id, direction: "received", label: "request received", model: this.model, payload: { prompt } });
+    debugEvent({ sessionId: this.id, direction: "sent", label: "sent to model endpoint", model: this.model, payload: { role: "user", content: prompt } });
     this.run = session
       .prompt(prompt)
       .then(() => session.waitForIdle())
       .then(() => {
-        this.state = this.state === "aborted" ? "aborted" : "done";
+        if (this.state === "running") this.state = this.error ? "error" : "done";
       })
       .catch((e: unknown) => {
         this.state = "error";
@@ -248,7 +253,21 @@ export class PiWorker {
             .map((part) => part.text)
             .join("");
           if (text) this.lastText = text;
-          if (ev.message.errorMessage) this.error = ev.message.errorMessage;
+          // A successful retry supersedes the earlier model-attempt error.
+          // Never let late provider messages overwrite a terminal timeout/abort.
+          if (this.state === "running") {
+            this.error = ev.message.errorMessage ||
+              (ev.message.stopReason === "error" ? "Model endpoint failed" :
+               ev.message.stopReason === "aborted" ? "Model endpoint aborted" : undefined);
+          }
+          debugEvent({
+            sessionId: this.id,
+            direction: ev.message.errorMessage ? "error" : "endpoint",
+            label: ev.message.errorMessage ? "model endpoint error" : "received from model endpoint",
+            model: this.model,
+            payload: { role: "assistant", content: text, error: ev.message.errorMessage },
+            ms: this.turnStartedAt ? Date.now() - this.turnStartedAt : undefined,
+          });
         }
         break;
 
@@ -256,7 +275,7 @@ export class PiWorker {
         // Pi emits this after retries, queued messages, and compaction have drained. It is
         // the authoritative terminal signal; do not make status consumers wait for the
         // separate prompt/idle promise to unwind (that promise can lag or get stuck).
-        if (this.state === "running") this.state = "done";
+        if (this.state === "running") this.state = this.error ? "error" : "done";
         this.onChange?.();
         void this.finishTurn().catch(NOOP);
         break;
@@ -266,6 +285,14 @@ export class PiWorker {
   private finishTurn(): Promise<void> {
     if (this.completionPromise) return this.completionPromise;
 
+    debugEvent({
+      sessionId: this.id,
+      direction: this.state === "error" ? "error" : "returned",
+      label: "delegate turn finished",
+      model: this.model,
+      payload: { state: this.state, finalText: this.lastText, error: this.error },
+      ms: this.turnStartedAt ? Date.now() - this.turnStartedAt : undefined,
+    });
     this.finishedAt = new Date().toISOString();
     // Unblock anything still waiting on an answer that will now never come.
     for (const q of this.questions.values()) q.resolve(undefined);
