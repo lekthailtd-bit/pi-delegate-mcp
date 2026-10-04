@@ -1,5 +1,6 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { Client } from "@modelcontextprotocol/client";
+
 const c = new Client({ name:"tr", version:"0" });
 await c.connect(new StdioClientTransport({ command:"pi-delegate-mcp",
   env:{...process.env, PI_DELEGATE_ALLOW_TOOLS:"bash"} }));

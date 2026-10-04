@@ -20,6 +20,11 @@ Canonical scope: Lek Thai fork `lekthailtd-bit/pi-delegate-mcp` and its delegate
 | D012 | Event/callback notification state belongs to one completed turn/result and is reset when `follow_up` begins a new turn. | A reused Pi session can produce multiple distinct results; each result needs its own deterministic completion notification instead of inheriting the prior turn's terminal notification state. |
 | D013 | A successful webhook 2xx is recorded as event `accepted`, not `delivered`. | The webhook response proves acceptance by the receiver, not that a subscribed ChatGPT supervisor has completed downstream processing. |
 | D014 | Notification transport failure must never make already-completed worker work reject retroactively. Event and callback failures are recorded as notification state and the terminal worker result remains intact. | Notification is secondary to durable work. A callback connection failure can occur before the adapter's internal delivery try/catch, so the orchestration layer must contain it. |
+| D015 | Turn 3 upgrades to the MCP TypeScript v2 split packages and uses `serveStdio()` for the existing local face plus `createMcpHandler()` for a separate Streamable HTTP face. | Preserves the proven local 1MCP/agent-offload path while adding real `2026-07-28` negotiation instead of replacing one transport with another. |
+| D016 | The HTTP face binds to loopback by default, requires a bearer token, and applies explicit Host/Origin checks before MCP dispatch. | Agent delegation can read files and start external model work; remote reachability must not imply anonymous access. |
+| D017 | `server/discover` is wire-tested, not inferred from SDK object accessors. The required response advertises `supportedVersions:["2026-07-28"]`, `resultType:"complete"`, tools, and draft `events:{}`. | The generic v2 client currently omits unknown draft capabilities from its typed accessor even though the raw discovery response preserves them. |
+| D018 | The deployed timeout, prompt-abort, and streamed-`lastText` lifecycle hardening is rebased into the Turn-3 branch before protocol work. | The green Gate-3 production behavior must not be lost merely because those fixes had been deployed ahead of GitHub `main`. |
+| D019 | Real ChatGPT Events testing should use Secure MCP Tunnel for the private integration host unless/until a production OAuth/mTLS public MCP endpoint is deliberately approved. | OpenAI supports private developer-mode MCP through an outbound tunnel; exposing this agent-launch surface anonymously or with an unsupported ad-hoc API-key flow is not acceptable. |
 
 ## Configurable operational defaults (inferred, not product decisions)
 
@@ -30,3 +35,8 @@ Canonical scope: Lek Thai fork `lekthailtd-bit/pi-delegate-mcp` and its delegate
 - Delivery attempts: 4 maximum with bounded exponential backoff.
 
 These defaults may be changed without revisiting the architecture, provided OpenAI MCP Events protocol constraints remain satisfied.
+
+## Turn 3 validation notes
+
+- `npm audit --omit=dev` reports 4 moderate + 3 high + 0 critical runtime findings on both `origin/main` and the Turn-3 branch. Turn 3 therefore introduces no net advisory count. The only direct vulnerable dependency is the pre-existing `@earendil-works/pi-coding-agent@0.84.3`; npm proposes a semver-major upgrade, which is intentionally outside this protocol migration.
+- Real ChatGPT subscription validation remains gated on a workspace-associated Secure MCP Tunnel (or separately approved OAuth/mTLS public endpoint). No anonymous public endpoint is an acceptable substitute.

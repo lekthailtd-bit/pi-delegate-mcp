@@ -26,3 +26,5 @@ jobs:
       - run: node test/callback.mjs
       - run: node test/events.mjs
       - run: node test/completion-events.mjs
+      - run: node test/worker-lifecycle.mjs
+      - run: node test/http-modern.mjs

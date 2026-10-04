@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { PKG_NAME, PKG_VERSION } from "./config.js";
 import { registerEvents } from "./events/register.js";
 import { registerTools } from "./tools/index.js";

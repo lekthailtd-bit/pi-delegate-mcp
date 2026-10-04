@@ -103,3 +103,17 @@ export const EVENTS_MAX_ATTEMPTS = Math.max(
   1,
   Math.floor(num(process.env.PI_DELEGATE_EVENTS_MAX_ATTEMPTS, 4)),
 );
+
+/** Optional Streamable HTTP serving face. It is loopback-only and authenticated by default. */
+export const HTTP_HOST = process.env.PI_DELEGATE_HTTP_HOST || "127.0.0.1";
+export const HTTP_PORT = Math.floor(num(process.env.PI_DELEGATE_HTTP_PORT, 18_082));
+export const HTTP_PATH = process.env.PI_DELEGATE_HTTP_PATH || "/mcp";
+export const HTTP_BEARER_TOKEN = process.env.PI_DELEGATE_HTTP_BEARER_TOKEN || undefined;
+export const HTTP_ALLOWED_HOSTS = (process.env.PI_DELEGATE_HTTP_ALLOWED_HOSTS || "127.0.0.1,localhost")
+  .split(",")
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
+export const HTTP_ALLOWED_ORIGINS = (process.env.PI_DELEGATE_HTTP_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);

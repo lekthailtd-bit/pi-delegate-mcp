@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { HISTORY_LIMIT } from "../config.js";
 import { all, forget, must } from "../registry.js";

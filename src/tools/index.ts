@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { registerControl } from "./control.js";
 import { registerInit } from "./init.js";
 import { registerModels } from "./models.js";

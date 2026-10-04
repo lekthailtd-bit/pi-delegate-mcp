@@ -5,14 +5,16 @@
   "type": "module",
   "bin": {
     "pi-delegate-mcp": "dist/index.js",
-    "pi-delegate-statusline": "dist/statusline/cli.js"
+    "pi-delegate-statusline": "dist/statusline/cli.js",
+    "pi-delegate-mcp-http": "dist/http.js"
   },
   "main": "dist/index.js",
   "exports": {
     ".": "./dist/index.js",
     "./worker": "./dist/pi/worker.js",
     "./statusline": "./dist/statusline/state.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./http-server": "./dist/http-server.js"
   },
   "files": [
     "dist",
@@ -26,7 +28,8 @@
     "typecheck": "tsc --noEmit",
     "test:ci": "npm run build && node test/launch.mjs node dist/index.js",
     "test": "for t in guard perm id scope init nopi smoke trace model callback events completion-events worker-lifecycle; do echo \"== $t\"; node test/$t.mjs || exit 1; done",
-    "prepublishOnly": "npm run test:ci"
+    "prepublishOnly": "npm run test:ci",
+    "start:http": "node dist/http.js"
   },
   "engines": {
     "node": ">=22.19.0"
@@ -59,7 +62,9 @@
   ],
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.84.3",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/client": "^2.3.0",
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.0",
     "zod": "^4.4.3"
   },
   "types": "dist/index.d.ts",

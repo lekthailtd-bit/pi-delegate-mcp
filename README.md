@@ -380,6 +380,14 @@ set, they run with the full privileges of this server's process, and some open s
 that outlive the session. Turn it on per call, for the delegates that need it, rather than leaving it
 on by default. It also costs real startup time, which is why it is off unless asked for.
 
+## MCP 2.0 / remote HTTP
+
+The normal `pi-delegate-mcp` binary remains the local stdio entry and now serves both modern MCP `2026-07-28` negotiation and legacy clients through the v2 SDK. A separate `pi-delegate-mcp-http` binary exposes Streamable HTTP for ChatGPT/plugin testing.
+
+The HTTP face is deliberately private by default: it binds `127.0.0.1:18082`, requires `PI_DELEGATE_HTTP_BEARER_TOKEN`, accepts MCP at `/mcp`, and rejects Host/Origin values outside the configured allowlists. Put TLS, OAuth/mTLS, or OpenAI Secure MCP Tunnel in front of it rather than binding it directly to the public Internet.
+
+`server/discover` advertises the `2026-07-28` revision and the draft `events` capability. The same endpoint implements `events/list`, `events/subscribe`, and `events/unsubscribe`; successful delegated turns emit `delegation.completed`, with the existing explicit callback retained as fallback when no event subscription accepts the notification.
+
 ## Configuration
 
 | Env var                       | Default          | Meaning                                                                  |
@@ -400,6 +408,20 @@ on by default. It also costs real startup time, which is why it is off unless as
 | `PI_DELEGATE_IGNORE_SCOPE`    | unset            | `1` ignores pi's `enabledModels` scope, allowing any configured model    |
 | `PI_DELEGATE_STRICT_SCOPE`    | unset            | `1` honours `enabledModels` exactly, dropping the custom-provider bypass |
 | `PI_CODING_AGENT_DIR`         | `~/.pi/agent`    | Where pi's `auth.json` and config are read from                          |
+| `PI_DELEGATE_EVENTS_STORE` | state-dir file | Persistent event-subscription store |
+| `PI_DELEGATE_EVENTS_PRINCIPAL` | `local` | Stable subscription principal for the current private deployment |
+| `PI_DELEGATE_EVENTS_TTL_MS` | `604800000` | Default event-subscription lifetime (7 days) |
+| `PI_DELEGATE_EVENTS_MAX_TTL_MS` | `604800000` | Maximum event-subscription lifetime |
+| `PI_DELEGATE_EVENTS_VERIFY_CACHE_MS` | `600000` | Callback verification cache lifetime |
+| `PI_DELEGATE_EVENTS_SECRET_ROTATION_MS` | `300000` | Previous webhook-secret overlap on rotation |
+| `PI_DELEGATE_EVENTS_TIMEOUT_MS` | `10000` | Per-webhook timeout |
+| `PI_DELEGATE_EVENTS_MAX_ATTEMPTS` | `4` | Maximum webhook delivery attempts |
+| `PI_DELEGATE_HTTP_HOST` | `127.0.0.1` | Bind address for the optional HTTP MCP face |
+| `PI_DELEGATE_HTTP_PORT` | `18082` | Port for the optional HTTP MCP face |
+| `PI_DELEGATE_HTTP_PATH` | `/mcp` | Streamable HTTP MCP path |
+| `PI_DELEGATE_HTTP_BEARER_TOKEN` | unset | Required bearer secret when starting the HTTP binary |
+| `PI_DELEGATE_HTTP_ALLOWED_HOSTS` | `127.0.0.1,localhost` | Comma-separated accepted Host names |
+| `PI_DELEGATE_HTTP_ALLOWED_ORIGINS` | unset | Comma-separated accepted Origin values; supplied origins are rejected when unset |
 
 ## Long-running work
 
