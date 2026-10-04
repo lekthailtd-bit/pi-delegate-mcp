@@ -80,6 +80,8 @@ export class PiWorker {
   private readonly modelSpec: string | undefined;
   private readonly turnTimeoutMs: number;
   private readonly openCalls = new Map<string, ToolCall>();
+  /** Text assembled from the current assistant message stream before message_end. */
+  private readonly streamedText = new Map<number, string>();
   private session: AgentSession | undefined;
   private unsubscribe: (() => void) | undefined;
   /** Completion is published once per turn, even when Pi settles before its promise unwinds. */
@@ -253,6 +255,7 @@ export class PiWorker {
     switch (ev.type) {
       case "turn_start":
         this.turns++;
+        this.streamedText.clear();
         this.onChange?.();
         break;
 
@@ -287,8 +290,23 @@ export class PiWorker {
       }
 
       case "message_update":
-        if (ev.assistantMessageEvent?.type === "text_end")
-          this.lastText = ev.assistantMessageEvent.content ?? this.lastText;
+        if (ev.assistantMessageEvent?.type === "text_delta") {
+          const index = ev.assistantMessageEvent.contentIndex ?? 0;
+          this.streamedText.set(index, (this.streamedText.get(index) ?? "") + ev.assistantMessageEvent.delta);
+          this.lastText = [...this.streamedText.entries()]
+            .sort(([a], [b]) => a - b)
+            .map(([, text]) => text)
+            .join("");
+          this.onChange?.();
+        } else if (ev.assistantMessageEvent?.type === "text_end") {
+          const index = ev.assistantMessageEvent.contentIndex ?? 0;
+          this.streamedText.set(index, ev.assistantMessageEvent.content ?? "");
+          this.lastText = [...this.streamedText.entries()]
+            .sort(([a], [b]) => a - b)
+            .map(([, text]) => text)
+            .join("");
+          this.onChange?.();
+        }
         break;
 
       case "message_end":

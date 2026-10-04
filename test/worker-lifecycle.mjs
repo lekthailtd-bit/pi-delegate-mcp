@@ -27,6 +27,17 @@ await Promise.resolve();
 assert.equal(worker.state, "running");
 
 worker.onEvent({
+  type: "message_update",
+  assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "settled " },
+});
+worker.onEvent({
+  type: "message_update",
+  assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "result" },
+});
+assert.equal(worker.state, "running", "streaming output does not wait for session settlement");
+assert.equal(worker.snapshot().lastText, "settled result", "status exposes assembled in-flight output");
+
+worker.onEvent({
   type: "message_end",
   message: { role: "assistant", content: [{ type: "text", text: "settled result" }] },
 });
