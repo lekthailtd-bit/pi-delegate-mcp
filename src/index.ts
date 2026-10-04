@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
+import { startConfiguredDebugViewer } from "./debug.js";
 import { cleanup } from "./statusline/state.js";
 
 /** How often to check that the host that launched us is still alive. */
@@ -30,4 +31,5 @@ setInterval(() => {
   }
 }, HOST_WATCH_MS).unref();
 
+startConfiguredDebugViewer();
 await createServer().connect(new StdioServerTransport());
