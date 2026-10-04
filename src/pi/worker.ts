@@ -7,7 +7,7 @@ import {
   type ExtensionUIContext,
   type CreateAgentSessionResult,
 } from "@earendil-works/pi-coding-agent";
-import { AGENT_DIR } from "../config.js";
+import { AGENT_DIR, TURN_TIMEOUT_MS } from "../config.js";
 import { type CompletionCallback, type CompletionPayload } from "../callback.js";
 import { notifyCompletion } from "../completion.js";
 import type { EventService } from "../events/service.js";
@@ -39,6 +39,8 @@ export interface WorkerOptions {
   callbackTarget?: string | undefined;
   callback?: CompletionCallback | undefined;
   events?: Pick<EventService, "emit"> | undefined;
+  /** Internal/test override; production uses PI_DELEGATE_TURN_TIMEOUT_MS. */
+  turnTimeoutMs?: number | undefined;
 }
 
 /**
@@ -76,13 +78,27 @@ export class PiWorker {
   private readonly callbackAdapter: CompletionCallback | undefined;
   private readonly eventService: Pick<EventService, "emit"> | undefined;
   private readonly modelSpec: string | undefined;
+  private readonly turnTimeoutMs: number;
   private readonly openCalls = new Map<string, ToolCall>();
   private session: AgentSession | undefined;
   private unsubscribe: (() => void) | undefined;
   /** Completion is published once per turn, even when Pi settles before its promise unwinds. */
   private completionPromise: Promise<void> | undefined;
+  private turnTimer: ReturnType<typeof setTimeout> | undefined;
+  private turnGeneration = 0;
 
-  constructor({ id, label, cwd, model, tools, extensions = false, callbackTarget, callback, events }: WorkerOptions) {
+  constructor({
+    id,
+    label,
+    cwd,
+    model,
+    tools,
+    extensions = false,
+    callbackTarget,
+    callback,
+    events,
+    turnTimeoutMs = TURN_TIMEOUT_MS,
+  }: WorkerOptions) {
     this.id = id ?? randomUUID();
     this.label = label;
     this.cwd = cwd;
@@ -92,6 +108,7 @@ export class PiWorker {
     this.callbackTarget = callbackTarget;
     this.callbackAdapter = callback;
     this.eventService = events;
+    this.turnTimeoutMs = turnTimeoutMs;
     this.startedAt = new Date().toISOString();
   }
 
@@ -163,6 +180,8 @@ export class PiWorker {
    * `start` and `followUp` so a second turn behaves exactly like the first.
    */
   private track(session: AgentSession, prompt: string): void {
+    const generation = ++this.turnGeneration;
+    this.clearTurnTimer();
     this.state = "running";
     this.error = undefined;
     this.finishedAt = undefined;
@@ -170,17 +189,48 @@ export class PiWorker {
     this.eventState = undefined;
     this.callbackState = undefined;
     this.completionPromise = undefined;
-    this.run = session
+    const operation = session
       .prompt(prompt)
       .then(() => session.waitForIdle())
       .then(() => {
-        this.state = this.state === "aborted" ? "aborted" : "done";
+        // A timeout/abort may have already published the terminal state while the
+        // underlying provider promise is still unwinding.
+        if (generation === this.turnGeneration && this.state === "running") this.state = "done";
       })
       .catch((e: unknown) => {
+        if (generation === this.turnGeneration && this.state === "running") {
+          this.state = "error";
+          this.error = message(e);
+        }
+      });
+
+    // Keep the background operation observed even when the race below terminates
+    // first. This prevents a late provider rejection from becoming unhandled.
+    void operation.catch(NOOP);
+
+    const timeout = new Promise<void>((resolve) => {
+      this.turnTimer = setTimeout(() => {
+        if (generation !== this.turnGeneration || this.completionPromise) return resolve();
         this.state = "error";
-        this.error = message(e);
-      })
-      .finally(() => this.finishTurn());
+        this.error = `Pi turn timed out after ${this.turnTimeoutMs}ms`;
+        this.onChange?.();
+        // Abort is best-effort: AgentSession.abort() waits for the provider to become
+        // idle, which is exactly the operation that may be stuck. Terminal state must
+        // not wait for that cleanup promise.
+        void session.abort().catch(NOOP);
+        resolve();
+      }, this.turnTimeoutMs);
+    });
+
+    this.run = Promise.race([operation, timeout]).finally(() => {
+      if (generation === this.turnGeneration) this.clearTurnTimer();
+      return this.finishTurn();
+    });
+  }
+
+  private clearTurnTimer(): void {
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    this.turnTimer = undefined;
   }
 
   /**
@@ -266,6 +316,7 @@ export class PiWorker {
   private finishTurn(): Promise<void> {
     if (this.completionPromise) return this.completionPromise;
 
+    this.clearTurnTimer();
     this.finishedAt = new Date().toISOString();
     // Unblock anything still waiting on an answer that will now never come.
     for (const q of this.questions.values()) q.resolve(undefined);
